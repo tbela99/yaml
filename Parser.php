@@ -11,8 +11,14 @@
 
 namespace Symfony\Component\Yaml;
 
+use Symfony\Component\Yaml\Ast\Comment;
+use Symfony\Component\Yaml\Ast\EmptyLine;
+use Symfony\Component\Yaml\Ast\NodeInterface;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Tag\TaggedValue;
+use Symfony\Component\Yaml\Ast\Node;
+use Symfony\Component\Yaml\Ast\Value;
+
 
 /**
  * Parser parses YAML strings to convert them to PHP arrays.
@@ -27,16 +33,19 @@ class Parser
     const BLOCK_SCALAR_HEADER_PATTERN = '(?P<separator>\||>)(?P<modifiers>\+|\-|\d+|\+\d+|\-\d+|\d+\+|\d+\-)?(?P<comments> +#.*)?';
 
     private $filename;
-    private $offset = 0;
+    private int $offset = 0;
     private $numberOfParsedLines = 0;
     private $totalNumberOfLines;
-    private $lines = [];
-    private $currentLineNb = -1;
+    private array $lines = [];
+    private int $currentLineNb = -1;
     private $currentLine = '';
-    private $refs = [];
-    private $skippedLineNumbers = [];
-    private $locallySkippedLineNumbers = [];
-    private $refsBeingParsed = [];
+    private array $refs = [];
+    private array $skippedLineNumbers = [];
+    private array $locallySkippedLineNumbers = [];
+    private array $refsBeingParsed = [];
+    private Node $ast;
+    private array $comments = [];
+    private $key = null;
 
     /**
      * Parses a YAML file into a PHP value.
@@ -93,7 +102,15 @@ class Parser
         }
 
         try {
+            $this->ast = new Node();
+            $this->key = null;
             $data = $this->doParse($value, $flags);
+
+            foreach ($this->getComments() as $comment) {
+
+                $this->ast->append($comment, null);
+            }
+
         } finally {
             if (null !== $mbEncoding) {
                 mb_internal_encoding($mbEncoding);
@@ -109,6 +126,33 @@ class Parser
         return $data;
     }
 
+    public function getAst(): ?Node {
+
+        return $this->ast;
+    }
+
+    public function addNode(string $value) {
+
+        foreach (preg_split('/^\s*(?=#)?/sm', $value, -1, PREG_SPLIT_NO_EMPTY) as $value) {
+
+            $value = trim($value);
+
+            $this->comments[] = $value === '' ? new EmptyLine() : new Comment($value);
+        }
+    }
+
+    /**
+     * @return Comment[]
+     */
+    private function getComments() {
+
+        $comments = $this->comments;
+
+        $this->comments = [];
+
+        return $comments;
+    }
+
     private function doParse(string $value, int $flags)
     {
         $this->currentLineNb = -1;
@@ -118,6 +162,11 @@ class Parser
         $this->numberOfParsedLines = \count($this->lines);
         $this->locallySkippedLineNumbers = [];
 
+        foreach ($this->getComments() as $comment) {
+
+            $this->ast->appendValue($comment, null);
+        }
+
         if (null === $this->totalNumberOfLines) {
             $this->totalNumberOfLines = $this->numberOfParsedLines;
         }
@@ -126,11 +175,17 @@ class Parser
             return null;
         }
 
-        $data = [];
+        $parsed_data = [];
         $context = null;
         $allowOverwrite = false;
 
         while ($this->isCurrentLineEmpty()) {
+
+            if ($this->isCurrentLineComment()) {
+
+                $this->addNode($this->currentLine);
+            }
+
             if (!$this->moveToNextLine()) {
                 return null;
             }
@@ -138,11 +193,17 @@ class Parser
 
         // Resolves the tag and returns if end of the document
         if (null !== ($tag = $this->getLineTag($this->currentLine, $flags, false)) && !$this->moveToNextLine()) {
-            return new TaggedValue($tag, '');
+            return null;
         }
 
         do {
             if ($this->isCurrentLineEmpty()) {
+
+                if ($this->isCurrentLineComment()) {
+
+                    $this->addNode($this->currentLine);
+                }
+
                 continue;
             }
 
@@ -171,13 +232,24 @@ class Parser
                 }
 
                 // array
-                if (!isset($values['value']) || '' == trim($values['value'], ' ') || 0 === strpos(ltrim($values['value'], ' '), '#')) {
-                    $data[] = $this->parseBlock($this->getRealCurrentLineNb() + 1, $this->getNextEmbedBlock(null, true) ?? '', $flags);
+                if (!isset($values['value']) || '' == trim($values['value'], ' ') || 0 === strpos( ltrim($values['value'], ' '), '#')) {
+
+                    if (isset($values['value']) && strpos( ltrim($values['value'], ' '), '#') === 0) {
+
+                        $this->addNode($values['value']);
+                    }
+
+                    $parsed_data[] = $this->ast->appendValue(
+                            $this->parseBlock($this->getRealCurrentLineNb() + 1,
+                            $this->getNextEmbedBlock(null, true) ?? '', $flags), null, $this->getComments());
                 } elseif (null !== $subTag = $this->getLineTag(ltrim($values['value'], ' '), $flags)) {
-                    $data[] = new TaggedValue(
+
+                    $parsed_data[] = $this->ast->appendValue(new TaggedValue(
                         $subTag,
                         $this->parseBlock($this->getRealCurrentLineNb() + 1, $this->getNextEmbedBlock(null, true), $flags)
-                    );
+                    ),
+                    null,
+                    $this->getComments());
                 } else {
                     if (isset($values['leadspaces'])
                         && self::preg_match('#^(?P<key>'.Inline::REGEX_QUOTED_STRING.'|[^ \'"\{\[].*?) *\:(\s+(?P<value>.+?))?\s*$#u', $this->trimTag($values['value']), $matches)
@@ -188,13 +260,14 @@ class Parser
                             $block .= "\n".$this->getNextEmbedBlock($this->getCurrentLineIndentation() + \strlen($values['leadspaces']) + 1);
                         }
 
-                        $data[] = $this->parseBlock($this->getRealCurrentLineNb(), $block, $flags);
+                        $parsed_data[] = $this->ast->appendValue($this->parseBlock($this->getRealCurrentLineNb(), $block, $flags), null, $this->getComments());
                     } else {
-                        $data[] = $this->parseValue($values['value'], $flags, $context);
+
+                        $parsed_data[] = $this->ast->appendValue($this->parseValue($values['value'], $flags, $context), null, $this->getComments());
                     }
                 }
                 if ($isRef) {
-                    $this->refs[$isRef] = end($data);
+                    $this->refs[$isRef] = end($parsed_data);
                     array_pop($this->refsBeingParsed);
                 }
             } elseif (
@@ -208,6 +281,7 @@ class Parser
 
                 try {
                     $key = Inline::parseScalar($values['key']);
+
                 } catch (ParseException $e) {
                     $e->setParsedLine($this->getRealCurrentLineNb() + 1);
                     $e->setSnippet($this->currentLine);
@@ -223,6 +297,8 @@ class Parser
                 if (\is_float($key)) {
                     $key = (string) $key;
                 }
+
+                $this->key = $key;
 
                 if ('<<' === $key && (!isset($values['value']) || '&' !== $values['value'][0] || !self::preg_match('#^&(?P<ref>[^ ]+)#u', $values['value'], $refMatches))) {
                     $mergeNode = true;
@@ -247,8 +323,9 @@ class Parser
                             throw new ParseException('YAML merge keys used with a scalar value instead of an array.', $this->getRealCurrentLineNb() + 1, $this->currentLine, $this->filename);
                         }
 
-                        $data += $refValue; // array union
+                        $parsed_data += $refValue; // array union
                     } else {
+
                         if (isset($values['value']) && '' !== $values['value']) {
                             $value = $values['value'];
                         } else {
@@ -277,12 +354,12 @@ class Parser
                                     throw new ParseException('Merge items must be arrays.', $this->getRealCurrentLineNb() + 1, $parsedItem, $this->filename);
                                 }
 
-                                $data += $parsedItem; // array union
+                                $parsed_data += $parsedItem; // array union
                             }
                         } else {
                             // If the value associated with the key is a single mapping node, each of its key/value pairs is inserted into the
                             // current mapping, unless the key already exists in it.
-                            $data += $parsed; // array union
+                            $parsed_data += $parsed; // array union
                         }
                     }
                 } elseif ('<<' !== $key && isset($values['value']) && '&' === $values['value'][0] && self::preg_match('#^&(?P<ref>[^ ]++) *+(?P<value>.*)#u', $values['value'], $matches)) {
@@ -295,16 +372,25 @@ class Parser
                 if ($mergeNode) {
                     // Merge keys
                 } elseif (!isset($values['value']) || '' === $values['value'] || '#' === ($values['value'][0] ?? '') || (null !== $subTag = $this->getLineTag($values['value'], $flags)) || '<<' === $key) {
+
+                    if ('#' === ($values['value'][0] ?? '')) {
+
+                        $this->addNode($values['value']);;
+                    }
+
                     // hash
                     // if next line is less indented or equal, then it means that the current value is null
                     if (!$this->isNextLineIndented() && !$this->isNextLineUnIndentedCollection()) {
                         // Spec: Keys MUST be unique; first one wins.
                         // But overwriting is allowed when a merge node is used in current block.
-                        if ($allowOverwrite || !isset($data[$key])) {
+
+                        if ($allowOverwrite || !isset($parsed_data[$key])) {
                             if (null !== $subTag) {
-                                $data[$key] = new TaggedValue($subTag, '');
+
+                                $parsed_data[$key] = $this->ast->appendValue(new TaggedValue($subTag, ''), $key, $this->getComments());
                             } else {
-                                $data[$key] = null;
+
+                                $parsed_data[$key] = $this->ast->appendValue(null, $key, $this->getComments());
                             }
                         } else {
                             throw new ParseException(sprintf('Duplicate key "%s" detected.', $key), $this->getRealCurrentLineNb() + 1, $this->currentLine);
@@ -313,6 +399,7 @@ class Parser
                         // remember the parsed line number here in case we need it to provide some contexts in error messages below
                         $realCurrentLineNbKey = $this->getRealCurrentLineNb();
                         $value = $this->parseBlock($this->getRealCurrentLineNb() + 1, $this->getNextEmbedBlock(), $flags);
+
                         if ('<<' === $key) {
                             $this->refs[$refMatches['ref']] = $value;
 
@@ -320,31 +407,36 @@ class Parser
                                 $value = (array) $value;
                             }
 
-                            $data += $value;
-                        } elseif ($allowOverwrite || !isset($data[$key])) {
+                            $parsed_data += $value;
+                        } elseif ($allowOverwrite || !isset($parsed_data[$key])) {
                             // Spec: Keys MUST be unique; first one wins.
                             // But overwriting is allowed when a merge node is used in current block.
                             if (null !== $subTag) {
-                                $data[$key] = new TaggedValue($subTag, $value);
+
+                                $parsed_data[$key] = new TaggedValue($subTag, $value);
                             } else {
-                                $data[$key] = $value;
+
+                                $parsed_data[$key] = $value;
                             }
                         } else {
                             throw new ParseException(sprintf('Duplicate key "%s" detected.', $key), $realCurrentLineNbKey + 1, $this->currentLine);
                         }
                     }
                 } else {
+
                     $value = $this->parseValue(rtrim($values['value']), $flags, $context);
+
                     // Spec: Keys MUST be unique; first one wins.
                     // But overwriting is allowed when a merge node is used in current block.
-                    if ($allowOverwrite || !isset($data[$key])) {
-                        $data[$key] = $value;
+                    if ($allowOverwrite || !isset($parsed_data[$key])) {
+
+                        $parsed_data[$key] = $this->ast->appendValue($value, $key, $this->getComments());
                     } else {
                         throw new ParseException(sprintf('Duplicate key "%s" detected.', $key), $this->getRealCurrentLineNb() + 1, $this->currentLine);
                     }
                 }
                 if ($isRef) {
-                    $this->refs[$isRef] = $data[$key];
+                    $this->refs[$isRef] = $parsed_data[$key];
                     array_pop($this->refsBeingParsed);
                 }
             } elseif ('"' === $this->currentLine[0] || "'" === $this->currentLine[0]) {
@@ -353,7 +445,7 @@ class Parser
                 }
 
                 try {
-                    return Inline::parse($this->parseQuotedString($this->currentLine), $flags, $this->refs);
+                    return $this->ast->appendValue(Inline::parse($this->parseQuotedString($this->currentLine), $flags, $this->refs, $this->ast), $this->key, $this->getComments());
                 } catch (ParseException $e) {
                     $e->setParsedLine($this->getRealCurrentLineNb() + 1);
                     $e->setSnippet($this->currentLine);
@@ -369,12 +461,18 @@ class Parser
                     $parsedMapping = Inline::parse($this->lexInlineMapping($this->currentLine), $flags, $this->refs);
 
                     while ($this->moveToNextLine()) {
+
+                        if ($this->isCurrentLineComment()) {
+
+                            $this->addNode($this->currentLine);
+                        }
+
                         if (!$this->isCurrentLineEmpty()) {
                             throw new ParseException('Unable to parse.', $this->getRealCurrentLineNb() + 1, $this->currentLine, $this->filename);
                         }
                     }
 
-                    return $parsedMapping;
+                    return $this->ast->appendValue($parsedMapping, $this->key, $this->getComments());
                 } catch (ParseException $e) {
                     $e->setParsedLine($this->getRealCurrentLineNb() + 1);
                     $e->setSnippet($this->currentLine);
@@ -390,12 +488,18 @@ class Parser
                     $parsedSequence = Inline::parse($this->lexInlineSequence($this->currentLine), $flags, $this->refs);
 
                     while ($this->moveToNextLine()) {
+
+                        if ($this->isCurrentLineComment()) {
+
+                            $this->addNode($this->currentLine);
+                        }
+
                         if (!$this->isCurrentLineEmpty()) {
                             throw new ParseException('Unable to parse.', $this->getRealCurrentLineNb() + 1, $this->currentLine, $this->filename);
                         }
                     }
 
-                    return $parsedSequence;
+                    return $this->ast->appendValue($parsedSequence, $this->key, $this->getComments());
                 } catch (ParseException $e) {
                     $e->setParsedLine($this->getRealCurrentLineNb() + 1);
                     $e->setSnippet($this->currentLine);
@@ -423,7 +527,7 @@ class Parser
                         throw $e;
                     }
 
-                    return $value;
+                    return $this->ast->appendValue($value, $this->key, $this->getComments());
                 }
 
                 // try to parse the value as a multi-line string as a last resort
@@ -435,6 +539,8 @@ class Parser
                     foreach ($this->lines as $line) {
                         $trimmedLine = trim($line);
                         if ('#' === ($trimmedLine[0] ?? '')) {
+
+                            $this->addNode($trimmedLine);
                             continue;
                         }
                         // If the indentation is not consistent at offset 0, it is to be considered as a ParseError
@@ -471,7 +577,7 @@ class Parser
                     }
 
                     try {
-                        return Inline::parse(trim($value));
+                        return $this->ast->appendValue(Inline::parse(trim($value)), $this->key, $this->getComments());
                     } catch (ParseException $e) {
                         // fall-through to the ParseException thrown below
                     }
@@ -482,20 +588,20 @@ class Parser
         } while ($this->moveToNextLine());
 
         if (null !== $tag) {
-            $data = new TaggedValue($tag, $data);
+            $parsed_data = new TaggedValue($tag, $parsed_data);
         }
 
-        if (Yaml::PARSE_OBJECT_FOR_MAP & $flags && 'mapping' === $context && !\is_object($data)) {
+        if (Yaml::PARSE_OBJECT_FOR_MAP & $flags && 'mapping' === $context && !\is_object($parsed_data)) {
             $object = new \stdClass();
 
-            foreach ($data as $key => $value) {
+            foreach ($parsed_data as $key => $value) {
                 $object->$key = $value;
             }
 
-            $data = $object;
+            $parsed_data = $object;
         }
 
-        return empty($data) ? null : $data;
+        return empty($parsed_data) ? null : $parsed_data;
     }
 
     private function parseBlock(int $offset, string $yaml, int $flags)
@@ -510,14 +616,40 @@ class Parser
             $skippedLineNumbers[] = $lineNumber;
         }
 
+        $comments = [];
+        $values = explode("\n", $yaml);
+        $i = count($values);
+
+        while($i--) {
+
+            if (!preg_match('/^\s*(#|(\s*$))/', $values[$i])) {
+
+                break;
+            }
+
+            $comments[] = trim($values[$i]);
+            array_splice($values, $i, 1);
+        }
+
+        if (!empty($comments)) {
+
+            $yaml = implode("\n", $values);
+        }
+
         $parser = new self();
         $parser->offset = $offset;
         $parser->totalNumberOfLines = $this->totalNumberOfLines;
         $parser->skippedLineNumbers = $skippedLineNumbers;
         $parser->refs = &$this->refs;
         $parser->refsBeingParsed = $this->refsBeingParsed;
+        $parser->ast = new Node();
+        $key = $parser->key = $this->key;
 
-        return $parser->doParse($yaml, $flags);
+        $value = $parser->doParse($yaml, $flags);
+
+        $this->ast->appendNode($parser->ast, $key, $parser->getComments());
+
+        return $value;
     }
 
     /**
@@ -583,6 +715,7 @@ class Parser
 
                 // empty and comment-like lines do not influence the indentation depth
                 if ($this->isCurrentLineEmpty() || $this->isCurrentLineComment()) {
+
                     $EOF = !$this->moveToNextLine();
 
                     if (!$EOF) {
@@ -610,7 +743,12 @@ class Parser
         if ($this->getCurrentLineIndentation() >= $newIndent) {
             $data[] = substr($this->currentLine, $newIndent);
         } elseif ($this->isCurrentLineEmpty() || $this->isCurrentLineComment()) {
+            if ($this->isCurrentLineComment()) {
+
+                $this->addNode($this->currentLine);
+            }
             $data[] = $this->currentLine;
+
         } else {
             $this->moveToPreviousLine();
 
@@ -643,6 +781,10 @@ class Parser
             if ($indent >= $newIndent) {
                 $data[] = substr($this->currentLine, $newIndent);
             } elseif ($this->isCurrentLineComment()) {
+                if ($this->isCurrentLineComment()) {
+
+                    $this->addNode($this->currentLine);
+                }
                 $data[] = $this->currentLine;
             } elseif (0 == $indent) {
                 $this->moveToPreviousLine();
@@ -700,6 +842,8 @@ class Parser
         if ('*' === ($value[0] ?? '')) {
             if (false !== $pos = strpos($value, '#')) {
                 $value = substr($value, 1, $pos - 2);
+
+                $this->addNode(substr($value, $pos));
             } else {
                 $value = substr($value, 1);
             }
@@ -741,7 +885,8 @@ class Parser
             $quotation = '' !== $value && ('"' === $value[0] || "'" === $value[0]) ? $value[0] : null;
 
             // do not take following lines into account when the current line is a quoted single line value
-            if (null !== $quotation && self::preg_match('/^'.$quotation.'.*'.$quotation.'(\s*#.*)?$/', $value)) {
+            if (null !== $quotation && self::preg_match('/^'.$quotation.'.*'.$quotation.'(\s*#.*)?$/', $value, $matches)) {
+
                 return Inline::parse($value, $flags, $this->refs);
             }
 
@@ -915,6 +1060,7 @@ class Parser
         $movements = 0;
 
         do {
+
             $EOF = !$this->moveToNextLine();
 
             if (!$EOF) {
@@ -962,6 +1108,11 @@ class Parser
      */
     private function isCurrentLineComment(): bool
     {
+        if ($this->currentLine === '') {
+
+            return false;
+        }
+
         //checking explicitly the first char of the trim is faster than loops or strpos
         $ltrimmedLine = ' ' === $this->currentLine[0] ? ltrim($this->currentLine, ' ') : $this->currentLine;
 
@@ -990,7 +1141,12 @@ class Parser
         $this->offset += $count;
 
         // remove leading comments
-        $trimmedValue = preg_replace('#^(\#.*?\n)+#s', '', $value, -1, $count);
+        $trimmedValue = preg_replace_callback('#^(\#.*?\n)+#s', function ($matches) {
+
+            $this->addNode($matches[0]);
+            return '';
+
+        }, $value, -1, $count);
         if (1 === $count) {
             // items have been removed, update the offset
             $this->offset += substr_count($value, "\n") - substr_count($trimmedValue, "\n");
@@ -998,7 +1154,15 @@ class Parser
         }
 
         // remove start of the document marker (---)
-        $trimmedValue = preg_replace('#^\-\-\-.*?\n#s', '', $value, -1, $count);
+        $trimmedValue = preg_replace_callback('#^\-\-\-.*?(\#.*?)?\n#s', function ($matches) {
+
+            if (!empty($matches[1])) {
+
+                $this->addNode($matches[1]);
+            }
+            
+            return '';
+        }, $value, -1, $count);
         if (1 === $count) {
             // items have been removed, update the offset
             $this->offset += substr_count($value, "\n") - substr_count($trimmedValue, "\n");
@@ -1022,12 +1186,22 @@ class Parser
         $movements = 0;
 
         do {
+            if ($this->isCurrentLineComment()) {
+
+                $this->addNode($this->currentLine);
+            }
+
             $EOF = !$this->moveToNextLine();
 
             if (!$EOF) {
                 ++$movements;
             }
         } while (!$EOF && ($this->isCurrentLineEmpty() || $this->isCurrentLineComment()));
+
+        if ($this->isCurrentLineComment()) {
+
+            $this->addNode($this->currentLine);
+        }
 
         if ($EOF) {
             return false;
@@ -1178,27 +1352,6 @@ class Parser
         }
 
         return $value;
-
-        for ($i = 1; isset($yaml[$i]) && $quotation !== $yaml[$i]; ++$i) {
-        }
-
-        // quoted single line string
-        if (isset($yaml[$i]) && $quotation === $yaml[$i]) {
-            return $yaml;
-        }
-
-        $lines = [$yaml];
-
-        while ($this->moveToNextLine()) {
-            for ($i = 1; isset($this->currentLine[$i]) && $quotation !== $this->currentLine[$i]; ++$i) {
-            }
-
-            $lines[] = trim($this->currentLine);
-
-            if (isset($this->currentLine[$i]) && $quotation === $this->currentLine[$i]) {
-                break;
-            }
-        }
     }
 
     private function lexInlineMapping(string $yaml): string

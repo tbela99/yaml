@@ -60,6 +60,7 @@ class Inline
      */
     public static function parse(string $value = null, int $flags = 0, array $references = [])
     {
+
         self::initialize($flags);
 
         $value = trim($value);
@@ -90,7 +91,7 @@ class Inline
             }
 
             // some comments are allowed at the end
-            if (preg_replace('/\s+#.*$/A', '', substr($value, $i))) {
+            if (preg_replace('/\s+(#.*)$/A', '', substr($value, $i))) {
                 throw new ParseException(sprintf('Unexpected characters near "%s".', substr($value, $i)), self::$parsedLineNumber + 1, $value, self::$parsedFilename);
             }
 

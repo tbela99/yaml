@@ -44,10 +44,11 @@ volumes:
 
 ```php
 
-$parser = new Parser();
+use Symfony\Component\Yaml\Ast\Node;
 
-$data = $parser->parse($yaml);
-$ast = $parser->getAst();
+$ast = new Node();
+
+$data = $ast->parse($yaml);
 
 var_dump(isset($ast['services.redis.image'])); // true
 
@@ -145,7 +146,7 @@ service:
 // binary value
 $ast['service.db.environment.BIN'] = hex2bin('abcf');
 // multiline string
-$ast['service.db.environment.secret'] = "correct horse 
+$ast['service.db.environment.secret'] = "correct horse
 battery staple";
 ```
 
@@ -153,10 +154,10 @@ battery staple";
 # this is a comment
 version: 3.8
 networks:
-  frontend: 
-  backend: 
+  frontend:
+  backend:
 volumes:
-  db-data: 
+  db-data:
 # this is the last comment
 service:
   db:
@@ -183,8 +184,8 @@ service:
 
 $data = $ast->getData();
 ```
- 
-## manipulate Data
+
+## Manipulate Data
 
 ```php
 
@@ -196,14 +197,15 @@ $ast['version'] = 3.7;
 $ast['author'] = 'a random guy';
 $ast['authors.list'] = ['John', 'Raymond', 'Michael'];
 ```
- ```yaml
+
+```yaml
 # this is a comment
 version: 3.7
 networks:
-  frontend: 
-  backend: 
+  frontend:
+  backend:
 volumes:
-  db-data: 
+  db-data:
 # this is the last comment
 service:
   db:
@@ -218,7 +220,7 @@ service:
       RANGE: 100m
       BIN: !!binary s6P2WISy5A2WFdyUiHtxemncqdEBpVT+JQm2g5fCtN8=
       secret: "correct horse \nbattery staple"
-author: 'a random guy'
+author: "a random guy"
 authors:
   list:
     - John
@@ -236,25 +238,45 @@ echo $ast;
 # this is a comment
 version: 3.7
 networks:
-  frontend: 
-  backend: 
+  frontend:
+  backend:
 volumes:
-  db-data: 
+  db-data:
 # this is the last comment
 service:
 
-author: 'a random guy'
+author: "a random guy"
 authors:
   list:
     - John
     - Raymond
     - Michael
-
 ```
 
-## Disclaimer
+## Parsing Yaml
 
-- I have not tested the changes beyond what I needed to support
+```php
+use Symfony\Component\Yaml\Ast\Node;
+use Symfony\Component\Yaml\Ast\Value;
 
-feel free to hack and eventually send a pull request.
+$ast = new Node();
 
+// parse Yaml string
+$ast->parse($yaml);
+//or parse Yaml file
+$ast->parseFile($file);
+
+// alter the ast
+$ast['version'] = '1.0';
+$ast['version']->addComment('this comment is associated to the version number');
+// or
+$ast->appendValue(1.0, 'version', ['this comment is associated to the version number']);
+// or
+$ast->appendNode(new Value(1.0), 'version', ['this comment is associated to the version number']);
+
+// render the ast
+$yaml = (string) $ast;
+
+// do something useful with the output
+file_put_contents('configuration.yaml', $yaml);
+```

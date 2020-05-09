@@ -30,7 +30,7 @@ class Value implements NodeInterface {
 
     public function __toString() {
 
-        return $this->value;
+        return Im$this->value;
     }
 
     public function jsonSerialize()

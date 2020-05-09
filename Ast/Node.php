@@ -10,7 +10,8 @@ use Symfony\Component\Yaml\Dumper;
 use Symfony\Component\Yaml\Parser;
 use Symfony\Component\Yaml\Yaml;
 
-class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
+class Node implements NodeInterface, IteratorAggregate, ArrayAccess
+{
 
     use NodeTrait;
 
@@ -20,12 +21,36 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
     protected array $values = [];
 
     /**
+     * @param string $yaml
+     * @return mixed $data
+     */
+    public function parse(string $yaml)
+    {
+
+        $parser = new Parser();
+        $data = $parser->parse($yaml);
+        $this->values = $parser->getAst()->values;
+        return $data;
+    }
+
+    /**
+     * @param string $file
+     * @return mixed $data
+     */
+    public function parseFile(string $file)
+    {
+
+        return $this->parse(file_get_contents($file));
+    }
+
+    /**
      * @param NodeInterface $node
      * @param string|null $key
      * @return NodeInterface
      * @throws Exception
      */
-    public function append(NodeInterface $node, ?string $key) {
+    public function append(NodeInterface $node, ?string $key)
+    {
 
         return $this->appendValue($node, $key);
     }
@@ -35,17 +60,16 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
      * @param string|null $key
      * @return $this
      */
-    public function appendNode(Node $node, ?string $key) : Node {
+    public function appendNode(Node $node, ?string $key): Node
+    {
 
-       if (is_null($key) || $key === '') {
+        if (is_null($key) || $key === '') {
 
-           $this->values[] = $node;
-       }
+            $this->values[] = $node;
+        } else {
 
-       else {
-
-           $this->values[$key] = $node;
-       }
+            $this->values[$key] = $node;
+        }
 
         return $this;
     }
@@ -54,7 +78,8 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
      * @return NodeInterface
      * @throws Exception
      */
-    public function appendEmptyLine() : NodeInterface {
+    public function appendEmptyLine(): NodeInterface
+    {
 
         return $this->append(new EmptyLine(), null);
     }
@@ -66,7 +91,8 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
      * @return mixed
      * @throws Exception
      */
-    public function appendValue($value, ?string $key, array $comments = []) {
+    public function appendValue($value, ?string $key, array $comments = [])
+    {
 
         if (!is_null($value) && !is_scalar($value) && !($value instanceof NodeInterface)) {
 
@@ -79,9 +105,7 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
 
                 $node[$k] = $v;
             }
-        }
-
-        else {
+        } else {
 
             $node = $value instanceof NodeInterface ? $value : new Value($value);
 
@@ -90,8 +114,7 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
             if (is_null($key) || $key === '') {
 
                 $this->values[] = $node;
-            }
-            else {
+            } else {
 
                 $this->values[$key] = $node;
             }
@@ -103,7 +126,8 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
     /**
      * @return array
      */
-    public function getData() : array {
+    public function getData(): array
+    {
 
         return array_map(function (NodeInterface $node) {
 
@@ -124,7 +148,8 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
     /**
      * @inheritDoc
      */
-    public function getValues(): array {
+    public function getValues(): array
+    {
 
         return $this->values;
     }
@@ -144,29 +169,25 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
         return new ArrayIterator($this->values);
     }
 
-    protected function offsetCheck($offset) {
+    protected function offsetCheck($offset)
+    {
 
-        if (strpos($offset, '.') > 0) {
+        $offsets = explode('.', $offset);
+        $offset = array_pop($offsets);
 
-            $offsets = explode('.', $offset);
-            $offset = array_pop($offsets);
+        $value = $this;
 
-            $value = $this;
+        foreach ($offsets as $off) {
 
-            foreach ($offsets as $off) {
+            if (!isset($value->values[$off])) {
 
-                if (!isset($value->values[$off])) {
-
-                    return false;
-                }
-
-                $value = $value->values[$off] ?? null;
+                return false;
             }
 
-            return isset($value->values[$offset]) ? [$value, $offset] : false;
+            $value = $value->values[$off] ?? null;
         }
 
-        return isset($this->values[$offset]) ? [$this, $offset] : false;
+        return isset($value->values[$offset]) ? [$value, $offset] : false;
     }
 
     /**
@@ -218,15 +239,11 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess {
             if (isset($object->values[$offset]) && ($object->values[$offset] instanceof Value)) {
 
                 $object->values[$offset]->setValue($value);
-            }
-
-            else {
+            } else {
 
                 $object->values[$offset] = $value instanceof Value ? $value : new Value($value);
             }
-        }
-
-        else if (is_array($value) || is_object($value)) {
+        } else if (is_array($value) || is_object($value)) {
 
             $object->values[$offset] = new Node();
 

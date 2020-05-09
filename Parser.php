@@ -136,7 +136,6 @@ class Parser
         foreach (preg_split('/^\s*(?=#)?/sm', $value, -1, PREG_SPLIT_NO_EMPTY) as $value) {
 
             $value = trim($value);
-
             $this->comments[] = $value === '' ? new EmptyLine() : new Comment($value);
         }
     }

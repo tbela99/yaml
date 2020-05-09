@@ -2,9 +2,17 @@
 
 namespace Symfony\Component\Yaml\Ast;
 
+use Symfony\Component\Yaml\Inline;
+
 class Renderer {
 
-    public function render (Node $node, int $indent = 0): string {
+    /**
+     * @param Node $node
+     * @param int $indent
+     * @param int $tag any Yaml::DUMP_* constant. null is always rendered as an empty string
+     * @return string
+     */
+    public function render (Node $node, int $indent = 0, $tag = 0): string {
 
         $yaml = '';
         $ident = str_repeat(' ', $indent);
@@ -23,7 +31,7 @@ class Renderer {
 
             if ($value instanceof Node) {
 
-                $yaml .= $ident.($isAssociative ? $key.':' : '-')."\n".$this->render($value, $indent + 1)."\n";
+                $yaml .= $ident.($isAssociative ? Inline::dump($key).':' : '-')."\n".$this->render($value, $indent + 1, $tag)."\n";
             }
 
             else {
@@ -41,7 +49,7 @@ class Renderer {
                 else {
 
                     $val = $value->getValue();
-                    $yaml .= $ident.($isAssociative ? $key.':' : '-').' '.(is_null($val) ? '' : (is_bool($val) ? ($val ? "true" : "false") : $val))."\n";
+                    $yaml .= $ident.($isAssociative ? Inline::dump($key).':' : '-').' '.(is_null($val) ? '' : Inline::dump($val, $tag))."\n";
                 }
             }
         }

@@ -140,6 +140,39 @@ service:
       RANGE: 100m
 ```
 
+```php
+
+// binary value
+$ast['service.db.environment.BIN'] = hex2bin('abcf');
+// multiline string
+$ast['service.db.environment.secret'] = "correct horse 
+battery staple";
+```
+
+```yaml
+# this is a comment
+version: '3.8'
+networks:
+  frontend: 
+  backend: 
+volumes:
+  db-data: 
+# this is the last comment
+service:
+  db:
+    # mariadb image?
+    image: mariadb
+    # environment variables
+    environment:
+      # killer bee
+      NODE: false
+      # going big here ...
+      SIZE: 4G
+      RANGE: 100m
+      BIN: !!binary q88=
+      secret: "correct horse \nbattery staple"
+```
+
 ## Disclaimer
 
 - I have not tested the changes beyond what I needed to support

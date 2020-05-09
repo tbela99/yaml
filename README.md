@@ -2,6 +2,12 @@
 
 Based on the Symphony Yaml Component
 
+## Installation
+
+```bash
+$ composer require tbela99/yaml
+```
+
 ## Modify Yaml And Preserve Comments
 
 ```yaml

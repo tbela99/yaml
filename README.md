@@ -151,7 +151,7 @@ battery staple";
 
 ```yaml
 # this is a comment
-version: '3.8'
+version: 3.8
 networks:
   frontend: 
   backend: 

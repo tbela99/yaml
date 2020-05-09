@@ -49,7 +49,11 @@ class Renderer {
                 else {
 
                     $val = $value->getValue();
-                    $yaml .= $ident.($isAssociative ? Inline::dump($key).':' : '-').' '.(is_null($val) ? '' : Inline::dump($val, $tag))."\n";
+                    $yaml .= $ident.($isAssociative ? Inline::dump($key).':' : '-').' '.(is_null($val) ? '' :
+                            (
+                                is_numeric($val) ? $val : Inline::dump($val, $tag)
+                            )
+                        )."\n";
                 }
             }
         }

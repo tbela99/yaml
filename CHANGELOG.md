@@ -1,6 +1,11 @@
 CHANGELOG
 =========
 
+5.1.1
+-----
+
+ * Added an Ast api to allow direct Yaml manipulation while preserving comments.
+
 5.1.0
 -----
 

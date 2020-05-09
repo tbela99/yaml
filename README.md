@@ -1,6 +1,6 @@
 ## PHP Yaml Parser and Dumper
 
-Based on the Symphonie Yaml Component
+Based on the Symphony Yaml Component
 
 ## Modify Yaml And Preserve Comments
 

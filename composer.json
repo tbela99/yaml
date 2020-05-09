@@ -1,11 +1,15 @@
 {
-    "name": "symfony/yaml",
+    "name": "tbela99/yaml",
     "type": "library",
-    "description": "Symfony Yaml Component",
-    "keywords": [],
-    "homepage": "https://symfony.com",
+    "description": "PHP Yaml Parser and Dumper that preserves comments",
+    "keywords": ["PHP", "Yaml", "Comments", "Parser", "Dumper"],
+    "homepage": "https://github.com/tbela99/yaml",
     "license": "MIT",
     "authors": [
+        {
+            "name": "Thierry Bela",
+            "homepage": "https://github.com/tbela99/"
+        },
         {
             "name": "Fabien Potencier",
             "email": "fabien@symfony.com"

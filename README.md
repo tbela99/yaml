@@ -173,6 +173,85 @@ service:
       secret: "correct horse \nbattery staple"
 ```
 
+## Get parsed data
+
+```php
+
+/**
+ * @var array $data
+ */
+
+$data = $ast->getData();
+```
+ 
+## manipulate Data
+
+```php
+
+/**
+ * @var array $data
+ */
+
+$ast['version'] = 3.7;
+$ast['author'] = 'a random guy';
+$ast['authors.list'] = ['John', 'Raymond', 'Michael'];
+```
+ ```yaml
+# this is a comment
+version: 3.7
+networks:
+  frontend: 
+  backend: 
+volumes:
+  db-data: 
+# this is the last comment
+service:
+  db:
+    # mariadb image?
+    image: mariadb
+    # environment variables
+    environment:
+      # killer bee
+      NODE: false
+      # going big here ...
+      SIZE: 4G
+      RANGE: 100m
+      BIN: !!binary s6P2WISy5A2WFdyUiHtxemncqdEBpVT+JQm2g5fCtN8=
+      secret: "correct horse \nbattery staple"
+author: 'a random guy'
+authors:
+  list:
+    - John
+    - Raymond
+    - Michael
+```
+
+```php
+
+unset($ast['service.db']);
+echo $ast;
+```
+
+```yaml
+# this is a comment
+version: 3.7
+networks:
+  frontend: 
+  backend: 
+volumes:
+  db-data: 
+# this is the last comment
+service:
+
+author: 'a random guy'
+authors:
+  list:
+    - John
+    - Raymond
+    - Michael
+
+```
+
 ## Disclaimer
 
 - I have not tested the changes beyond what I needed to support

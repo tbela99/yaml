@@ -56,7 +56,9 @@ echo $ast['services.redis.image']; // redis:alpine
 unset($ast['services']);
 
 echo $ast;
-/**
+```
+
+```yaml
 # this is a comment
 version: 3.8
 networks:
@@ -65,7 +67,9 @@ networks:
 volumes:
   db-data:
 # this is the last comment
-*/
+```
+
+```php
 
 $ast['service.db'] = [
   'image' => 'mariadb',
@@ -81,8 +85,9 @@ $ast['service.db.environment.NODE']->addComment('killer app');
 $ast['service.db.environment.SIZE']->addComment('going big here ...');
 
 echo $ast;
+```
 
-/**
+```yaml
 # this is a comment
 version: 3.8
 networks:
@@ -101,7 +106,9 @@ service:
       NODE: true
       # going big here ...
       SIZE: 2G
-*/
+```
+
+```php
 
 $ast['service.db.environment.NODE'] = false;
 $ast['service.db.environment.NODE']->setComments(['killer bee']);
@@ -109,8 +116,9 @@ $ast['service.db.environment.SIZE'] = '4G';
 $ast['service.db.environment.RANGE'] = '100m';
 
 echo $ast;
+```
 
-/**
+```yaml
 # this is a comment
 version: 3.8
 networks:
@@ -130,14 +138,11 @@ service:
       # going big here ...
       SIZE: 4G
       RANGE: 100m
-
-*/
-
 ```
 
 ## Disclaimer
 
-- I have not tested the changes beyond what I needed
+- I have not tested the changes beyond what I needed to support
 
 feel free to hack and eventually send a pull request.
 

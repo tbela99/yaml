@@ -287,7 +287,7 @@ $yaml = (string) $ast;
 file_put_contents('configuration.yaml', $yaml);
 ```
 
-## Using In Key
+## Using '.' In Key
 
 By default '.' is used and path delimiter. You must escape the key to avoid interpretation
 

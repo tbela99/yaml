@@ -169,10 +169,58 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess
         return new ArrayIterator($this->values);
     }
 
+    protected function splitKey($offset) {
+
+        $values = [];
+
+        $j = strlen($offset) - 1;
+
+        $value = '';
+        
+        for ($i = 0; $i <= $j; $i++) {
+
+            switch ($offset[$i]) {
+
+                case '\\':
+
+                    if ($i < $j &&  $offset[$i + 1] == '.') {
+
+                        $value .= '.';
+                        $i++;
+                    }
+
+                    else {
+
+                        $value .= $offset[$i];
+                    }
+
+                    break;
+
+                case '.':
+
+                    $values[] = $value;
+                    $value = '';
+                    break;
+
+                default: 
+
+                    $value .= $offset[$i];
+                    break;
+            }
+        }
+
+        if ($value !== '') {
+
+            $values[] = $value;
+        }
+
+        return $values;
+    }
+
     protected function offsetCheck($offset)
     {
 
-        $offsets = explode('.', $offset);
+        $offsets = $this->splitKey($offset);
         $offset = array_pop($offsets);
 
         $value = $this;
@@ -219,7 +267,7 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess
     public function offsetSet($offset, $value)
     {
 
-        $offsets = explode('.', $offset);
+        $offsets = $this->splitKey($offset);
         $offset = array_pop($offsets);
 
         $object = $this;

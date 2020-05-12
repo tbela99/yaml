@@ -6,6 +6,16 @@ Trait NodeTrait {
 
     protected array $comments = [];
 
+    public function escapeKey(string $key) {
+
+        return str_replace('.', '\\.', $key);
+    }
+
+    public function unescapeKey(string $key) {
+
+        return str_replace('\\.', '.', $key);
+    }
+
     /**
      * @param Comment|string $comment
      * @return $this|NodeInterface

@@ -286,3 +286,34 @@ $yaml = (string) $ast;
 // do something useful with the output
 file_put_contents('configuration.yaml', $yaml);
 ```
+
+## Using In Key
+
+By default '.' is used and path delimiter. You must escape the key to avoid interpretation
+
+```php
+
+$ast = new Node();
+
+$ast['path.to.data'] = [];
+
+// use '.' in the key name
+$ast[$ast->escapeKey('v0.1')] = [
+
+  'description' => 'first stable release',
+  'download' => 'https://example.com'
+];
+
+echo $ast;
+```
+
+result
+
+```yaml
+path:
+  to:
+    data: "user name"
+v0.1:
+  description: "first stable release"
+  download: "https://example.com"
+```

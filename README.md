@@ -295,7 +295,7 @@ By default '.' is used and path delimiter. You must escape the key to avoid inte
 
 $ast = new Node();
 
-$ast['path.to.data'] = [];
+$ast['path.to.data'] = "user name";
 
 // use '.' in the key name
 $ast[$ast->escapeKey('v0.1')] = [

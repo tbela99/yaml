@@ -15,4 +15,5 @@ interface NodeInterface extends JsonSerializable  {
     public function setComments(array $comments): NodeInterface;
     public function getComments(): array;
     public function removeComments(): NodeInterface;
+    public function getValue();
 }

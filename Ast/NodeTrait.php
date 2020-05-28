@@ -18,7 +18,7 @@ Trait NodeTrait {
 
     /**
      * @param Comment|string $comment
-     * @return $this|NodeInterface
+     * @return NodeInterface
      */
     public function addComment($comment): NodeInterface {
 

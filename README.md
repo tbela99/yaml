@@ -304,6 +304,14 @@ $ast[$ast->escapeKey('v0.1')] = [
   'download' => 'https://example.com'
 ];
 
+$ast['versions'] = [
+  'v0.1' => [
+
+    'description' => 'first stable release',
+    'download' => 'https://example.com'
+  ]
+];
+
 echo $ast;
 ```
 
@@ -316,4 +324,8 @@ path:
 v0.1:
   description: "first stable release"
   download: "https://example.com"
+versions:
+  v0.1:
+    description: "first stable release"
+    download: "https://example.com"
 ```

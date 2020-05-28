@@ -126,15 +126,10 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess
     /**
      * @return array
      */
-    public function getData(): array
+    public function getValue(): array
     {
 
         return array_map(function (NodeInterface $node) {
-
-            if ($node instanceof Node) {
-
-                return $node->getData();
-            }
 
             return $node->getValue();
 
@@ -146,7 +141,7 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess
     }
 
     /**
-     * @inheritDoc
+     * @return NodeInterface[]
      */
     public function getValues(): array
     {
@@ -300,7 +295,7 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess
             foreach ($value as $key => $val) {
 
                 // recursion?
-                $object[$key] = $val;
+                $object[$this->escapeKey($key)] = $val;
             }
         }
     }

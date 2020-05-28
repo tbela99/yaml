@@ -188,7 +188,7 @@ service:
  * @var array $data
  */
 
-$data = $ast->getData();
+$data = $ast->getValue();
 ```
 
 ## Manipulate Data

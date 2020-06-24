@@ -329,3 +329,44 @@ versions:
     description: "first stable release"
     download: "https://example.com"
 ```
+
+## Recursively Merge Two Yaml Nodes
+
+```php
+$data = 
+'path:
+ to:
+  name: "John Henry"
+versions:
+ v0.2:
+  description: "second stable release"
+  download: "https://example.com/2"';
+
+$node = new Node();
+
+$node->parse($data);
+
+$ast->merge($node);
+
+echo "$ast\n\n";
+```
+result
+
+```yaml
+# this comment is associated to the version number
+version: '1.0'
+path:
+  to:
+    data: 'user name'
+    name: 'John Henry'
+v0.1:
+  description: 'first stable release'
+  download: 'https://example.com'
+versions:
+  v0.1:
+    description: 'first stable release'
+    download: 'https://example.com'
+  v0.2:
+    description: 'second stable release'
+    download: 'https://example.com/2'
+``

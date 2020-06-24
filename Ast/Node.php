@@ -149,6 +149,28 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess
         return $this->values;
     }
 
+    /**
+     * recursively merge $node into $this
+     * @param Node $node
+     * @return $this
+     */
+    public function merge(Node $node): Node
+    {
+
+        foreach ($node as $key => $value) {
+
+            if (isset($this->values[$key]) && $this->values[$key] instanceof Node && $value instanceof Node) {
+
+                $this->values[$key]->merge($value);
+                continue;
+            }
+
+            $this->values[$key] = $value;
+        }
+
+        return $this;
+    }
+
     public function jsonSerialize()
     {
         return $this->values;
@@ -164,27 +186,26 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess
         return new ArrayIterator($this->values);
     }
 
-    protected function splitKey($offset) {
+    protected function splitKey($offset)
+    {
 
         $values = [];
 
         $j = strlen($offset) - 1;
 
         $value = '';
-        
+
         for ($i = 0; $i <= $j; $i++) {
 
             switch ($offset[$i]) {
 
                 case '\\':
 
-                    if ($i < $j &&  $offset[$i + 1] == '.') {
+                    if ($i < $j && $offset[$i + 1] == '.') {
 
                         $value .= '.';
                         $i++;
-                    }
-
-                    else {
+                    } else {
 
                         $value .= $offset[$i];
                     }
@@ -197,7 +218,7 @@ class Node implements NodeInterface, IteratorAggregate, ArrayAccess
                     $value = '';
                     break;
 
-                default: 
+                default:
 
                     $value .= $offset[$i];
                     break;
